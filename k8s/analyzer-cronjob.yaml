@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: analyzer
+spec:
+  schedule: "0 1 * * 1-5" # 08:00 GMT+7 on weekdays
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: analyzer
+            image: yourrepo/futuna:latest
+            command: ["/app/analyzer"]
+            env:
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: openai-secret
+                  key: OPENAI_API_KEY
+            - name: DATABASE_URL
+              value: postgres://postgres:example@postgres:5432/postgres?sslmode=disable
+          restartPolicy: OnFailure

@@ -1,0 +1,21 @@
+-- +migrate Up
+CREATE TABLE IF NOT EXISTS tickers (
+    symbol TEXT PRIMARY KEY,
+    name   TEXT
+);
+
+CREATE TABLE IF NOT EXISTS analyses (
+    id SERIAL PRIMARY KEY,
+    ticker TEXT REFERENCES tickers(symbol),
+    analyzed_at DATE NOT NULL,
+    short_term TEXT,
+    long_term TEXT,
+    strategies JSONB,
+    overall TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (ticker, analyzed_at)
+);
+
+-- +migrate Down
+DROP TABLE IF EXISTS analyses;
+DROP TABLE IF EXISTS tickers;
