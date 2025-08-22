@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -13,6 +14,7 @@ type Config struct {
 	OpenAIBaseURL  string
 	DatabaseURL    string
 	AnalyzeOnStart bool
+	Port           int
 }
 
 // Load reads configuration from environment variables.
@@ -26,6 +28,11 @@ func Load() Config {
 			v := strings.ToLower(os.Getenv("ANALYZE_ON_START"))
 			return v == "1" || v == "true"
 		}(),
+	}
+	if p := os.Getenv("PORT"); p != "" {
+		if n, err := strconv.Atoi(p); err == nil {
+			cfg.Port = n
+		}
 	}
 	if cfg.OpenAIKey == "" {
 		log.Println("warning: OPENAI_API_KEY is not set")

@@ -4,26 +4,26 @@ import (
 	"context"
 	"encoding/json"
 
-	oa "github.com/sashabaranov/go-openai/v2"
+	openai "github.com/openai/openai-go/v2"
+	"github.com/openai/openai-go/v2/option"
+	"github.com/openai/openai-go/v2/responses"
 )
 
-// Client wraps the OpenAI API client.
 type Client struct {
-	api   *oa.Client
+	api   openai.Client // value, not pointer
 	model string
 }
 
-// New creates a new Client.
 func New(apiKey, baseURL, model string) *Client {
-	cfg := oa.DefaultConfig(apiKey)
+	opts := []option.RequestOption{option.WithAPIKey(apiKey)}
 	if baseURL != "" {
-		cfg.BaseURL = baseURL
+		opts = append(opts, option.WithBaseURL(baseURL))
 	}
-	return &Client{api: oa.NewClientWithConfig(cfg), model: model}
+	return &Client{api: openai.NewClient(opts...), model: model}
 }
 
-// AnalyzeTickers requests analysis for all tickers using web_search.
 func (c *Client) AnalyzeTickers(ctx context.Context) (string, string, string, error) {
+	// --- your JSON Schema unchanged ---
 	schema := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -86,42 +86,62 @@ func (c *Client) AnalyzeTickers(ctx context.Context) (string, string, string, er
 		"required": []string{"as_of", "tickers", "sources"},
 	}
 
-	req := oa.ResponsesRequest{
-		Model:       c.model,
-		Temperature: 0,
-		Input: []oa.ResponseMessage{
-			{
-				Role:    oa.ChatMessageRoleSystem,
-				Content: "You are a disciplined equity analyst for Vietnam (HOSE). You may use the web_search tool.\nRules:\n- No domain restrictions; search the open web.\n- Before any time-sensitive claim (news, flows, prices, events), use web_search.\n- Prefer data from the last 14 days; use older only for reports.\n- Output JSON ONLY. No prose. Return text in vietnamese",
-			},
-			{
-				Role:    oa.ChatMessageRoleUser,
-				Content: "Generate today’s 08:00 (GMT+7) HOSE analysis for all HOSE tickers. For each ticker, provide:\n1. Short-Term View\n   - Recommendation: (ACCUMULATE | HOLD | AVOID)\n   - Confidence (0-100)\n   - Reason\n2. Long-Term View\n   - Recommendation: (ACCUMULATE | HOLD | AVOID)\n   - Confidence (0-100)\n   - Reason\n3. Strategy-Based Analysis (at least 5 technical/fundamental strategies)\n   For each strategy:\n   - Strategy Name (e.g., Moving Average Crossover, RSI, Fibonacci, Momentum, Bollinger Bands, Fundamental PE Valuation, etc.)\n   - Stance: (FAVORABLE | NEUTRAL | UNFAVORABLE)\n   - Note: Explain why this stance is taken (indicator values, patterns, or signals observed).\n4. Final Overall Recommendation\n   - Aggregate the above strategy stances into a single recommendation (ACCUMULATE | HOLD | AVOID).\n   - Provide confidence score (0-100).\n   - Justify by balancing short-term vs long-term outlook and strategy signals.\n5. Sources\n   - Include relevant URLs used in the analysis.",
-			},
-		},
-		Tools: []oa.ToolDefinition{{Type: oa.ToolTypeWebSearch}},
-		ResponseFormat: &oa.ResponseFormat{
-			Type: oa.ResponseFormatTypeJSONSchema,
-			JSONSchema: &oa.JSONSchemaDefinition{
-				Name:   "analysis_response",
-				Schema: schema,
-				Strict: true,
-			},
-		},
+	// Build the minimal typed params (only what we must type)
+	params := responses.ResponseNewParams{
+		Model: c.model, // string, not openai.String(...)
 	}
-	reqJSON, _ := json.Marshal(req)
-	resp, err := c.api.CreateResponse(ctx, req)
+
+	// Keep a copy of the request (with our extra JSON injected below)
+	reqJSON, _ := json.Marshal(params)
+
+	// Call with JSON overrides:
+	// - tools: enable web_search (preview)
+	// - response_format: structured outputs via our schema
+	// - input: system + user messages
+	resp, err := c.api.Responses.New(
+		ctx,
+		params,
+		// Tools (prefer the dated variant if plain preview errors in your region)
+		option.WithJSONSet("tools", []map[string]any{
+			{"type": "web_search_preview"},
+			// or: {"type": "web_search_preview_2025_03_11"},
+		}),
+		// Structured Outputs
+		option.WithJSONSet("response_format", map[string]any{
+			"type": "json_schema",
+			"json_schema": map[string]any{
+				"name":   "analysis_response",
+				"schema": schema,
+				"strict": true,
+			},
+		}),
+		// Input messages
+		option.WithJSONSet("input", []map[string]any{
+			{
+				"type": "message", "role": "system",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "You are a disciplined equity analyst for Vietnam (HOSE). You may use the web_search tool.\nRules:\n- No domain restrictions; search the open web.\n- Before any time-sensitive claim (news, flows, prices, events), use web_search.\n- Prefer data from the last 14 days; use older only for reports.\n- Output JSON ONLY. No prose. Return text in vietnamese"},
+				},
+			},
+			{
+				"type": "message", "role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "Generate today’s 08:00 (GMT+7) HOSE analysis for all HOSE tickers. For each ticker, provide:\n1. Short-Term View\n   - Recommendation: (ACCUMULATE | HOLD | AVOID)\n   - Confidence (0-100)\n   - Reason\n2. Long-Term View\n   - Recommendation: (ACCUMULATE | HOLD | AVOID)\n   - Confidence (0-100)\n   - Reason\n3. Strategy-Based Analysis (at least 5 technical/fundamental strategies)\n   For each strategy:\n   - Strategy Name (e.g., Moving Average Crossover, RSI, Fibonacci, Momentum, Bollinger Bands, Fundamental PE Valuation, etc.)\n   - Stance: (FAVORABLE | NEUTRAL | UNFAVORABLE)\n   - Note: Explain why this stance is taken (indicator values, patterns, or signals observed).\n4. Final Overall Recommendation\n   - Aggregate the above strategy stances into a single recommendation (ACCUMULATE | HOLD | AVOID).\n   - Provide confidence score (0-100).\n   - Justify by balancing short-term vs long-term outlook and strategy signals.\n5. Sources\n   - Include relevant URLs used in the analysis."},
+				},
+			},
+		}),
+	)
 	if err != nil {
 		return string(reqJSON), "", "", err
 	}
+
 	respJSON, _ := json.Marshal(resp)
-	if len(resp.Output) == 0 {
-		return string(reqJSON), string(respJSON), "", nil
+
+	// Prefer the SDK helper if present; otherwise read last output text
+	out := resp.OutputText() // concatenated text, when available
+	if out == "" && len(resp.Output) > 0 && len(resp.Output[0].Content) > 0 {
+		out = resp.Output[0].Content[0].Text
 	}
-	// The last item of the output contains the assistant message with the JSON.
-	last := resp.Output[len(resp.Output)-1]
-	if len(last.Content) == 0 {
-		return string(reqJSON), string(respJSON), "", nil
-	}
-	return string(reqJSON), string(respJSON), last.Content[0].Text, nil
+
+	return string(reqJSON), string(respJSON), out, nil
 }
