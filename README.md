@@ -13,19 +13,16 @@ Futuna fetches daily AI-generated recommendations for all HOSE tickers and expos
 
 # edit .env with your keys and database URL
 
-# run migrations (using golang-migrate or similar)
-# migrate -path migrations -database $DATABASE_URL up
-
 # install front-end deps once
 npm --prefix web install
 
-# fetch analyses, start API and dashboard
+# fetch analyses, start API and dashboard (runs migrations automatically)
 ./scripts/run-dev.sh
 
-# or run components separately
-# ./scripts/run-analyzer.sh
-# ./scripts/run-web.sh   # API server
-# ./scripts/run-client.sh   # front-end
+# or run components separately (each runs migrations)
+./scripts/run-analyzer.sh
+./scripts/run-web.sh   # API server
+./scripts/run-client.sh   # front-end
 ```
 
 ## Kubernetes
