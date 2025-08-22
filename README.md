@@ -5,7 +5,7 @@ Futuna fetches daily AI-generated recommendations for all HOSE tickers and expos
 ## Features
 * Daily (weekdays 08:00 GMT+7) analysis of every HOSE stock using OpenAI with deterministic prompts and automatic web search.
 * Results stored in PostgreSQL with full history.
-* REST API and Vue.js dashboard with a modern Tabulator table for filters, search and color‑coded recommendations.
+* REST API and Next.js dashboard with a modern Tabulator table for filters, search and color‑coded recommendations.
 * Kubernetes manifests for Postgres, analyzer CronJob and web server.
 
 ## Running locally
@@ -16,12 +16,16 @@ export DATABASE_URL=postgres://user:pass@localhost:5432/futuna?sslmode=disable
 # run migrations (using golang-migrate or similar)
 # migrate -path migrations -database $DATABASE_URL up
 
-# fetch analyses and start web server
+# install front-end deps once
+npm --prefix web install
+
+# fetch analyses, start API and Next.js front-end
 ./scripts/run-dev.sh
 
-# or run the analyzer and web separately
+# or run components separately
 # ./scripts/run-analyzer.sh
-# ./scripts/run-web.sh
+# ./scripts/run-web.sh   # API server
+# ./scripts/run-client.sh   # Next.js front-end
 ```
 
 ## Kubernetes
