@@ -1,0 +1,149 @@
+import React, { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
+
+const ReactTabulator = dynamic(() => import('react-tabulator'), { ssr: false });
+
+export default function AnalysisTable() {
+  const [rows, setRows] = useState([]);
+  const [strategies, setStrategies] = useState([]);
+  const [active, setActive] = useState('All');
+  const [sources, setSources] = useState([]);
+  const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
+  const splitField = (str) => {
+    if (!str) return ['', ''];
+    const idx = str.indexOf(' - ');
+    if (idx === -1) return [str, ''];
+    return [str.slice(0, idx), str.slice(idx + 3)];
+  };
+
+  useEffect(() => {
+    fetch(`${api}/api/analysis`)
+      .then((res) => res.json())
+      .then((data) => {
+        const stratMap = new Map();
+        const parsed = data.map((r) => {
+          let s = r.strategies;
+          if (typeof s === 'string') {
+            try {
+              s = JSON.parse(s);
+            } catch (e) {
+              console.error(e);
+              s = [];
+            }
+          }
+          (s || []).forEach((st) => {
+            if (!stratMap.has(st.name)) stratMap.set(st.name, st.name);
+          });
+          r.strategies = Array.isArray(s) ? s : [];
+          if (typeof r.sources === 'string') {
+            try { r.sources = JSON.parse(r.sources); } catch { r.sources = []; }
+          }
+          const [shortRec, shortReason] = splitField(r.short_term);
+          const [longRec, longReason] = splitField(r.long_term);
+          const [overallRec, overallReason] = splitField(r.overall);
+          r.short_term = shortRec;
+          r.short_reason = shortReason;
+          r.long_term = longRec;
+          r.long_reason = longReason;
+          r.overall = overallRec;
+          r.overall_reason = overallReason;
+          return r;
+        });
+        setRows(parsed);
+        setStrategies(Array.from(stratMap.keys()));
+        if (parsed.length > 0) {
+          setSources(Array.isArray(parsed[0].sources) ? parsed[0].sources : []);
+        }
+      })
+      .catch(console.error);
+  }, [api]);
+
+  const colorFormatter = (cell) => {
+    const value = cell.getValue();
+    const field = cell.getField();
+    if (value.startsWith('ACCUMULATE')) {
+      cell.getElement().style.color = 'green';
+    } else if (value.startsWith('AVOID')) {
+      cell.getElement().style.color = 'red';
+    } else {
+      cell.getElement().style.color = 'orange';
+    }
+    let confField = null;
+    if (field === 'short_term') confField = 'short_confidence';
+    if (field === 'long_term') confField = 'long_confidence';
+    if (field === 'overall') confField = 'overall_confidence';
+    if (confField) {
+      const conf = cell.getRow().getData()[confField];
+      if (conf !== undefined) {
+        cell.getElement().setAttribute('title', conf + '%');
+      }
+    }
+    return value;
+  };
+
+  const baseColumns = [
+    { title: 'Ticker', field: 'ticker', hozAlign: 'left' },
+    { title: 'Short', field: 'short_term', formatter: colorFormatter },
+    { title: 'Short Reason', field: 'short_reason' },
+    { title: 'Long', field: 'long_term', formatter: colorFormatter },
+    { title: 'Long Reason', field: 'long_reason' },
+    { title: 'Overall', field: 'overall', formatter: colorFormatter }
+  ];
+
+  const columns = active === 'All'
+    ? baseColumns
+    : [...baseColumns, { title: 'Stance', field: 'strategy_stance' }, { title: 'Note', field: 'strategy_note' }];
+
+  const dataForTab = () => {
+    if (active === 'All') return rows;
+    return rows.reduce((acc, r) => {
+      const st = r.strategies.find((s) => s.name === active);
+      if (st) acc.push({ ...r, strategy_stance: st.stance, strategy_note: st.note });
+      return acc;
+    }, []);
+  };
+
+  return (
+    <div>
+      <ul className="tabs">
+        <li className={active === 'All' ? 'active' : ''} onClick={() => setActive('All')}>All</li>
+        {strategies.map((name) => (
+          <li key={name} className={active === name ? 'active' : ''} onClick={() => setActive(name)}>
+            {name}
+          </li>
+        ))}
+      </ul>
+      <ReactTabulator data={dataForTab()} columns={columns} layout="fitData" />
+      {sources.length > 0 && (
+        <div className="sources">
+          <h3>Nguồn</h3>
+          <ul>
+            {sources.map((s) => (
+              <li key={s}><a href={s} target="_blank" rel="noreferrer">{s}</a></li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <style jsx>{`
+        .tabs {
+          list-style: none;
+          padding: 0;
+          display: flex;
+          gap: 1rem;
+          cursor: pointer;
+        }
+        .tabs li {
+          padding: 0.5rem 1rem;
+          border-bottom: 2px solid transparent;
+        }
+        .tabs li.active {
+          border-bottom-color: #000;
+        }
+        .sources {
+          margin-top: 1rem;
+        }
+      `}</style>
+    </div>
+  );
+}
