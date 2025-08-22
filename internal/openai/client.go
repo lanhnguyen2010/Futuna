@@ -22,8 +22,8 @@ func New(apiKey, baseURL, model string) *Client {
 	return &Client{api: oa.NewClientWithConfig(cfg), model: model}
 }
 
-// AnalyzeVN30 requests analysis for all VN30 tickers using web_search.
-func (c *Client) AnalyzeVN30(ctx context.Context) (string, string, string, error) {
+// AnalyzeTickers requests analysis for all tickers using web_search.
+func (c *Client) AnalyzeTickers(ctx context.Context) (string, string, string, error) {
 	req := oa.ResponsesRequest{
 		Model:       c.model,
 		Temperature: 0,
@@ -34,7 +34,7 @@ func (c *Client) AnalyzeVN30(ctx context.Context) (string, string, string, error
 			},
 			{
 				Role:    oa.ChatMessageRoleUser,
-				Content: "Generate today’s 08:00 (GMT+7) HOSE analysis for all VN30 tickers. Include:\n- short_term (ACCUMULATE|HOLD|AVOID + confidence 0-100 + reason)\n- long_term (ACCUMULATE|HOLD|AVOID + confidence 0-100 + reason)\n- at least 5 strategies (name, stance FAVORABLE|NEUTRAL|UNFAVORABLE, note)\n- sources (URLs)",
+				Content: "Generate today’s 08:00 (GMT+7) HOSE analysis for all HOSE tickers. Include:\n- short_term (ACCUMULATE|HOLD|AVOID + confidence 0-100 + reason)\n- long_term (ACCUMULATE|HOLD|AVOID + confidence 0-100 + reason)\n- at least 5 strategies (name, stance FAVORABLE|NEUTRAL|UNFAVORABLE, note)\n- sources (URLs)",
 			},
 		},
 		Tools: []oa.ToolDefinition{{Type: oa.ToolTypeWebSearch}},
