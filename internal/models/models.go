@@ -25,3 +25,11 @@ type Ticker struct {
 	Symbol string `db:"symbol" json:"symbol"`
 	Name   string `db:"name" json:"name"`
 }
+
+// OpenAILog stores raw request and response for auditing.
+type OpenAILog struct {
+	ID        int64          `db:"id" json:"id"`
+	CreatedAt time.Time      `db:"created_at" json:"created_at"`
+	Request   types.JSONText `db:"request" json:"request"`
+	Response  types.JSONText `db:"response" json:"response"`
+}

@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/jmoiron/sqlx/types"
 
 	"futuna/internal/models"
 )
 
 // OpenAI defines interface to get analysis.
 type OpenAI interface {
-	AnalyzeVN30(ctx context.Context) (string, error)
+	AnalyzeVN30(ctx context.Context) (string, string, string, error)
 }
 
 // Service orchestrates OpenAI calls and persistence.
@@ -29,8 +30,11 @@ func NewService(db *sqlx.DB, llm OpenAI) *Service {
 
 // AnalyzeAllAndStore runs analysis for all VN30 tickers and saves to DB.
 func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
-	result, err := s.llm.AnalyzeVN30(ctx)
+	reqJSON, respJSON, result, err := s.llm.AnalyzeVN30(ctx)
 	if err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO openai_logs (request, response) VALUES ($1,$2)`, types.JSONText(reqJSON), types.JSONText(respJSON)); err != nil {
 		return err
 	}
 	var payload struct {

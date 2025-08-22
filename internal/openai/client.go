@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"encoding/json"
 
 	oa "github.com/sashabaranov/go-openai"
 )
@@ -17,7 +18,7 @@ func New(apiKey string) *Client {
 }
 
 // AnalyzeVN30 requests analysis for all VN30 tickers using web_search.
-func (c *Client) AnalyzeVN30(ctx context.Context) (string, error) {
+func (c *Client) AnalyzeVN30(ctx context.Context) (string, string, string, error) {
 	req := oa.ResponsesRequest{
 		Model:       oa.GPT4oMini,
 		Temperature: 0,
@@ -33,17 +34,19 @@ func (c *Client) AnalyzeVN30(ctx context.Context) (string, error) {
 		},
 		Tools: []oa.ToolDefinition{{Type: oa.ToolTypeWebSearch}},
 	}
+	reqJSON, _ := json.Marshal(req)
 	resp, err := c.api.CreateResponse(ctx, req)
 	if err != nil {
-		return "", err
+		return string(reqJSON), "", "", err
 	}
+	respJSON, _ := json.Marshal(resp)
 	if len(resp.Output) == 0 {
-		return "", nil
+		return string(reqJSON), string(respJSON), "", nil
 	}
 	// The last item of the output contains the assistant message with the JSON.
 	last := resp.Output[len(resp.Output)-1]
 	if len(last.Content) == 0 {
-		return "", nil
+		return string(reqJSON), string(respJSON), "", nil
 	}
-	return last.Content[0].Text, nil
+	return string(reqJSON), string(respJSON), last.Content[0].Text, nil
 }
