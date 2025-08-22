@@ -42,21 +42,27 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 		Tickers []struct {
 			Ticker    string `json:"ticker"`
 			ShortTerm struct {
-				Rating     string `json:"rating"`
-				Confidence int    `json:"confidence"`
-				Reason     string `json:"reason"`
+				Recommendation string `json:"recommendation"`
+				Confidence     int    `json:"confidence"`
+				Reason         string `json:"reason"`
 			} `json:"short_term"`
 			LongTerm struct {
-				Rating     string `json:"rating"`
-				Confidence int    `json:"confidence"`
-				Reason     string `json:"reason"`
+				Recommendation string `json:"recommendation"`
+				Confidence     int    `json:"confidence"`
+				Reason         string `json:"reason"`
 			} `json:"long_term"`
+			Strategies []struct {
+				Name   string `json:"name"`
+				Stance string `json:"stance"`
+				Note   string `json:"note"`
+			} `json:"strategies"`
+			Overall struct {
+				Recommendation string `json:"recommendation"`
+				Confidence     int    `json:"confidence"`
+				Reason         string `json:"reason"`
+			} `json:"overall"`
 		} `json:"tickers"`
-		Strategies []struct {
-			Name   string `json:"name"`
-			Stance string `json:"stance"`
-			Note   string `json:"note"`
-		} `json:"strategies"`
+		Sources []string `json:"sources"`
 	}
 	if err := json.Unmarshal([]byte(result), &payload); err != nil {
 		return err
@@ -66,25 +72,21 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 		date = time.Now()
 	}
 	date = date.Truncate(24 * time.Hour)
-	strategiesJSON, _ := json.Marshal(payload.Strategies)
+	sourcesJSON, _ := json.Marshal(payload.Sources)
 	for _, item := range payload.Tickers {
 		if _, err := s.db.ExecContext(ctx, `INSERT INTO tickers (symbol) VALUES ($1) ON CONFLICT DO NOTHING`, item.Ticker); err != nil {
 			return err
 		}
-		short := fmt.Sprintf("%s - %s", item.ShortTerm.Rating, item.ShortTerm.Reason)
+		short := fmt.Sprintf("%s - %s", item.ShortTerm.Recommendation, item.ShortTerm.Reason)
 		shortConf := item.ShortTerm.Confidence
-		long := fmt.Sprintf("%s - %s", item.LongTerm.Rating, item.LongTerm.Reason)
+		long := fmt.Sprintf("%s - %s", item.LongTerm.Recommendation, item.LongTerm.Reason)
 		longConf := item.LongTerm.Confidence
+		overall := fmt.Sprintf("%s - %s", item.Overall.Recommendation, item.Overall.Reason)
+		overallConf := item.Overall.Confidence
+		strategiesJSON, _ := json.Marshal(item.Strategies)
 
-		overall := "HOLD"
-		if item.ShortTerm.Rating == "AVOID" || item.LongTerm.Rating == "AVOID" {
-			overall = "AVOID"
-		} else if item.ShortTerm.Rating == "ACCUMULATE" || item.LongTerm.Rating == "ACCUMULATE" {
-			overall = "ACCUMULATE"
-		}
-
-		_, err := s.db.ExecContext(ctx, `INSERT INTO analyses (ticker, analyzed_at, short_term, short_confidence, long_term, long_confidence, strategies, created_at, overall) VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8) ON CONFLICT (ticker, analyzed_at) DO UPDATE SET short_term=EXCLUDED.short_term, short_confidence=EXCLUDED.short_confidence, long_term=EXCLUDED.long_term, long_confidence=EXCLUDED.long_confidence, strategies=EXCLUDED.strategies, overall=EXCLUDED.overall`,
-			item.Ticker, date, short, shortConf, long, longConf, strategiesJSON, overall)
+		_, err := s.db.ExecContext(ctx, `INSERT INTO analyses (ticker, analyzed_at, short_term, short_confidence, long_term, long_confidence, strategies, overall, overall_confidence, sources, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW()) ON CONFLICT (ticker, analyzed_at) DO UPDATE SET short_term=EXCLUDED.short_term, short_confidence=EXCLUDED.short_confidence, long_term=EXCLUDED.long_term, long_confidence=EXCLUDED.long_confidence, strategies=EXCLUDED.strategies, overall=EXCLUDED.overall, overall_confidence=EXCLUDED.overall_confidence, sources=EXCLUDED.sources`,
+			item.Ticker, date, short, shortConf, long, longConf, strategiesJSON, overall, overallConf, sourcesJSON)
 		if err != nil {
 			return err
 		}
@@ -95,7 +97,7 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 // ListAnalyses returns analyses for a given date.
 func (s *Service) ListAnalyses(ctx context.Context, date time.Time) ([]models.Analysis, error) {
 	rows := []models.Analysis{}
-	err := s.db.SelectContext(ctx, &rows, `SELECT id, ticker, analyzed_at, short_term, short_confidence, long_term, long_confidence, strategies, created_at, overall FROM analyses WHERE analyzed_at=$1 ORDER BY ticker`, date)
+	err := s.db.SelectContext(ctx, &rows, `SELECT id, ticker, analyzed_at, short_term, short_confidence, long_term, long_confidence, strategies, overall, overall_confidence, sources, created_at FROM analyses WHERE analyzed_at=$1 ORDER BY ticker`, date)
 	return rows, err
 }
 

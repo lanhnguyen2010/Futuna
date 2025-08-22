@@ -7,15 +7,16 @@ export default function AnalysisTable() {
   const [rows, setRows] = useState([]);
   const [strategies, setStrategies] = useState([]);
   const [active, setActive] = useState('All');
+  const [sources, setSources] = useState([]);
   const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
   useEffect(() => {
     fetch(`${api}/api/analysis`)
       .then((res) => res.json())
       .then((data) => {
-        setRows(data);
-        if (data.length > 0) {
-          let s = data[0].strategies;
+        const stratMap = new Map();
+        const parsed = data.map((r) => {
+          let s = r.strategies;
           if (typeof s === 'string') {
             try {
               s = JSON.parse(s);
@@ -24,7 +25,19 @@ export default function AnalysisTable() {
               s = [];
             }
           }
-          setStrategies(Array.isArray(s) ? s : []);
+          (s || []).forEach((st) => {
+            if (!stratMap.has(st.name)) stratMap.set(st.name, st.name);
+          });
+          r.strategies = Array.isArray(s) ? s : [];
+          if (typeof r.sources === 'string') {
+            try { r.sources = JSON.parse(r.sources); } catch { r.sources = []; }
+          }
+          return r;
+        });
+        setRows(parsed);
+        setStrategies(Array.from(stratMap.keys()));
+        if (parsed.length > 0) {
+          setSources(Array.isArray(parsed[0].sources) ? parsed[0].sources : []);
         }
       })
       .catch(console.error);
@@ -43,6 +56,7 @@ export default function AnalysisTable() {
     let confField = null;
     if (field === 'short_term') confField = 'short_confidence';
     if (field === 'long_term') confField = 'long_confidence';
+    if (field === 'overall') confField = 'overall_confidence';
     if (confField) {
       const conf = cell.getRow().getData()[confField];
       if (conf !== undefined) {
@@ -52,49 +66,47 @@ export default function AnalysisTable() {
     return value;
   };
 
-  const columns = [
+  const baseColumns = [
     { title: 'Ticker', field: 'ticker', hozAlign: 'left' },
     { title: 'Short', field: 'short_term', formatter: colorFormatter },
     { title: 'Long', field: 'long_term', formatter: colorFormatter },
     { title: 'Overall', field: 'overall', formatter: colorFormatter }
   ];
 
-  const extractTickers = (note) => {
-    const tickerSet = new Set();
-    const matches = note.match(/\b[A-Z]{3,4}\b/g) || [];
-    matches.forEach((t) => {
-      if (rows.some((r) => r.ticker === t)) {
-        tickerSet.add(t);
-      }
-    });
-    return Array.from(tickerSet);
-  };
+  const columns = active === 'All'
+    ? baseColumns
+    : [...baseColumns, { title: 'Stance', field: 'strategy_stance' }, { title: 'Note', field: 'strategy_note' }];
 
   const dataForTab = () => {
     if (active === 'All') return rows;
-    const strat = strategies.find((s) => s.name === active);
-    if (!strat) return [];
-    const tickers = extractTickers(strat.note);
-    return rows.filter((r) => tickers.includes(r.ticker));
+    return rows.reduce((acc, r) => {
+      const st = r.strategies.find((s) => s.name === active);
+      if (st) acc.push({ ...r, strategy_stance: st.stance, strategy_note: st.note });
+      return acc;
+    }, []);
   };
 
   return (
     <div>
       <ul className="tabs">
         <li className={active === 'All' ? 'active' : ''} onClick={() => setActive('All')}>All</li>
-        {strategies.map((s) => (
-          <li key={s.name} className={active === s.name ? 'active' : ''} onClick={() => setActive(s.name)}>
-            {s.name}
+        {strategies.map((name) => (
+          <li key={name} className={active === name ? 'active' : ''} onClick={() => setActive(name)}>
+            {name}
           </li>
         ))}
       </ul>
-      {active !== 'All' && (
-        <div className="strategy-info">
-          <p><strong>Stance:</strong> {strategies.find((s) => s.name === active)?.stance}</p>
-          <p><strong>Note:</strong> {strategies.find((s) => s.name === active)?.note}</p>
+      <ReactTabulator data={dataForTab()} columns={columns} layout="fitData" />
+      {sources.length > 0 && (
+        <div className="sources">
+          <h3>Nguồn</h3>
+          <ul>
+            {sources.map((s) => (
+              <li key={s}><a href={s} target="_blank" rel="noreferrer">{s}</a></li>
+            ))}
+          </ul>
         </div>
       )}
-      <ReactTabulator data={dataForTab()} columns={columns} layout="fitData" />
       <style jsx>{`
         .tabs {
           list-style: none;
@@ -110,8 +122,8 @@ export default function AnalysisTable() {
         .tabs li.active {
           border-bottom-color: #000;
         }
-        .strategy-info {
-          margin: 1rem 0;
+        .sources {
+          margin-top: 1rem;
         }
       `}</style>
     </div>
