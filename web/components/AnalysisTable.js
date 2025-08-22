@@ -10,6 +10,13 @@ export default function AnalysisTable() {
   const [sources, setSources] = useState([]);
   const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
+  const splitField = (str) => {
+    if (!str) return ['', ''];
+    const idx = str.indexOf(' - ');
+    if (idx === -1) return [str, ''];
+    return [str.slice(0, idx), str.slice(idx + 3)];
+  };
+
   useEffect(() => {
     fetch(`${api}/api/analysis`)
       .then((res) => res.json())
@@ -32,6 +39,15 @@ export default function AnalysisTable() {
           if (typeof r.sources === 'string') {
             try { r.sources = JSON.parse(r.sources); } catch { r.sources = []; }
           }
+          const [shortRec, shortReason] = splitField(r.short_term);
+          const [longRec, longReason] = splitField(r.long_term);
+          const [overallRec, overallReason] = splitField(r.overall);
+          r.short_term = shortRec;
+          r.short_reason = shortReason;
+          r.long_term = longRec;
+          r.long_reason = longReason;
+          r.overall = overallRec;
+          r.overall_reason = overallReason;
           return r;
         });
         setRows(parsed);
@@ -69,7 +85,9 @@ export default function AnalysisTable() {
   const baseColumns = [
     { title: 'Ticker', field: 'ticker', hozAlign: 'left' },
     { title: 'Short', field: 'short_term', formatter: colorFormatter },
+    { title: 'Short Reason', field: 'short_reason' },
     { title: 'Long', field: 'long_term', formatter: colorFormatter },
+    { title: 'Long Reason', field: 'long_reason' },
     { title: 'Overall', field: 'overall', formatter: colorFormatter }
   ];
 
