@@ -10,8 +10,8 @@ Futuna fetches daily AI-generated recommendations for all HOSE tickers and expos
 
 ## Running locally
 ```
-export OPENAI_API_KEY=...       # required
-export DATABASE_URL=postgres://user:pass@localhost:5432/futuna?sslmode=disable
+
+# edit .env with your keys and database URL
 
 # run migrations (using golang-migrate or similar)
 # migrate -path migrations -database $DATABASE_URL up
@@ -19,13 +19,13 @@ export DATABASE_URL=postgres://user:pass@localhost:5432/futuna?sslmode=disable
 # install front-end deps once
 npm --prefix web install
 
-# fetch analyses, start API and Next.js front-end
+# fetch analyses, start API and dashboard
 ./scripts/run-dev.sh
 
 # or run components separately
 # ./scripts/run-analyzer.sh
 # ./scripts/run-web.sh   # API server
-# ./scripts/run-client.sh   # Next.js front-end
+# ./scripts/run-client.sh   # front-end
 ```
 
 ## Kubernetes
