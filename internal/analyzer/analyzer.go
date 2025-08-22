@@ -14,7 +14,7 @@ import (
 
 // OpenAI defines interface to get analysis.
 type OpenAI interface {
-	AnalyzeVN30(ctx context.Context) (string, string, string, error)
+	AnalyzeTickers(ctx context.Context) (string, string, string, error)
 }
 
 // Service orchestrates OpenAI calls and persistence.
@@ -28,9 +28,9 @@ func NewService(db *sqlx.DB, llm OpenAI) *Service {
 	return &Service{db: db, llm: llm}
 }
 
-// AnalyzeAllAndStore runs analysis for all VN30 tickers and saves to DB.
+// AnalyzeAllAndStore runs analysis for all tickers and saves to DB.
 func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
-	reqJSON, respJSON, result, err := s.llm.AnalyzeVN30(ctx)
+	reqJSON, respJSON, result, err := s.llm.AnalyzeTickers(ctx)
 	if err != nil {
 		return err
 	}
@@ -38,8 +38,8 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 		return err
 	}
 	var payload struct {
-		AsOf string `json:"as_of"`
-		VN30 []struct {
+		AsOf    string `json:"as_of"`
+		Tickers []struct {
 			Ticker    string `json:"ticker"`
 			ShortTerm struct {
 				Rating     string `json:"rating"`
@@ -51,7 +51,7 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 				Confidence int    `json:"confidence"`
 				Reason     string `json:"reason"`
 			} `json:"long_term"`
-		} `json:"vn30"`
+		} `json:"tickers"`
 		Strategies []struct {
 			Name   string `json:"name"`
 			Stance string `json:"stance"`
@@ -67,7 +67,7 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 	}
 	date = date.Truncate(24 * time.Hour)
 	strategiesJSON, _ := json.Marshal(payload.Strategies)
-	for _, item := range payload.VN30 {
+	for _, item := range payload.Tickers {
 		if _, err := s.db.ExecContext(ctx, `INSERT INTO tickers (symbol) VALUES ($1) ON CONFLICT DO NOTHING`, item.Ticker); err != nil {
 			return err
 		}
