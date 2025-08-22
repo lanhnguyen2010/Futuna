@@ -10,9 +10,23 @@ import (
 	"futuna/internal/analyzer"
 )
 
-// Router returns an HTTP handler for the web API and static files.
+// Router returns an HTTP handler for the web API.
 func Router(svc *analyzer.Service) http.Handler {
 	r := chi.NewRouter()
+
+	// simple CORS for dev front-end
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
+
 	r.Get("/api/analysis", func(w http.ResponseWriter, r *http.Request) {
 		dateStr := r.URL.Query().Get("date")
 		var date time.Time
@@ -33,6 +47,7 @@ func Router(svc *analyzer.Service) http.Handler {
 		}
 		json.NewEncoder(w).Encode(rows)
 	})
+
 	r.Get("/api/tickers", func(w http.ResponseWriter, r *http.Request) {
 		rows, err := svc.ListTickers(r.Context())
 		if err != nil {
@@ -41,7 +56,6 @@ func Router(svc *analyzer.Service) http.Handler {
 		}
 		json.NewEncoder(w).Encode(rows)
 	})
-	fileServer := http.FileServer(http.Dir("web/static"))
-	r.Handle("/*", fileServer)
+
 	return r
 }

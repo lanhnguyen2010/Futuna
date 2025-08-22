@@ -12,5 +12,4 @@ FROM gcr.io/distroless/base-debian12
 WORKDIR /app
 COPY --from=builder /app/analyzer /app/analyzer
 COPY --from=builder /app/web /app/web
-COPY web/static web/static
 CMD ["/app/web"]
