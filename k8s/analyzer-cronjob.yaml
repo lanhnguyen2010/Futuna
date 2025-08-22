@@ -18,6 +18,10 @@ spec:
                 secretKeyRef:
                   name: openai-secret
                   key: OPENAI_API_KEY
+            - name: OPENAI_MODEL
+              value: gpt-4.1-mini
+            - name: OPENAI_BASE_URL
+              value: https://api.openai.com/v1
             - name: DATABASE_URL
               value: postgres://postgres:example@postgres:5432/postgres?sslmode=disable
           restartPolicy: OnFailure

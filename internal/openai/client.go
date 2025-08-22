@@ -9,18 +9,23 @@ import (
 
 // Client wraps the OpenAI API client.
 type Client struct {
-	api *oa.Client
+	api   *oa.Client
+	model string
 }
 
 // New creates a new Client.
-func New(apiKey string) *Client {
-	return &Client{api: oa.NewClient(apiKey)}
+func New(apiKey, baseURL, model string) *Client {
+	cfg := oa.DefaultConfig(apiKey)
+	if baseURL != "" {
+		cfg.BaseURL = baseURL
+	}
+	return &Client{api: oa.NewClientWithConfig(cfg), model: model}
 }
 
 // AnalyzeVN30 requests analysis for all VN30 tickers using web_search.
 func (c *Client) AnalyzeVN30(ctx context.Context) (string, string, string, error) {
 	req := oa.ResponsesRequest{
-		Model:       oa.GPT4oMini,
+		Model:       c.model,
 		Temperature: 0,
 		Input: []oa.ResponseMessage{
 			{
