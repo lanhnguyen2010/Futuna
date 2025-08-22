@@ -38,12 +38,14 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 		VN30 []struct {
 			Ticker    string `json:"ticker"`
 			ShortTerm struct {
-				Rating string `json:"rating"`
-				Reason string `json:"reason"`
+				Rating     string `json:"rating"`
+				Confidence int    `json:"confidence"`
+				Reason     string `json:"reason"`
 			} `json:"short_term"`
 			LongTerm struct {
-				Rating string `json:"rating"`
-				Reason string `json:"reason"`
+				Rating     string `json:"rating"`
+				Confidence int    `json:"confidence"`
+				Reason     string `json:"reason"`
 			} `json:"long_term"`
 		} `json:"vn30"`
 		Strategies []struct {
@@ -66,7 +68,9 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 			return err
 		}
 		short := fmt.Sprintf("%s - %s", item.ShortTerm.Rating, item.ShortTerm.Reason)
+		shortConf := item.ShortTerm.Confidence
 		long := fmt.Sprintf("%s - %s", item.LongTerm.Rating, item.LongTerm.Reason)
+		longConf := item.LongTerm.Confidence
 
 		overall := "HOLD"
 		if item.ShortTerm.Rating == "AVOID" || item.LongTerm.Rating == "AVOID" {
@@ -75,8 +79,8 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 			overall = "ACCUMULATE"
 		}
 
-		_, err := s.db.ExecContext(ctx, `INSERT INTO analyses (ticker, analyzed_at, short_term, long_term, strategies, created_at, overall) VALUES ($1,$2,$3,$4,$5,NOW(),$6) ON CONFLICT (ticker, analyzed_at) DO UPDATE SET short_term=EXCLUDED.short_term, long_term=EXCLUDED.long_term, strategies=EXCLUDED.strategies, overall=EXCLUDED.overall`,
-			item.Ticker, date, short, long, strategiesJSON, overall)
+		_, err := s.db.ExecContext(ctx, `INSERT INTO analyses (ticker, analyzed_at, short_term, short_confidence, long_term, long_confidence, strategies, created_at, overall) VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8) ON CONFLICT (ticker, analyzed_at) DO UPDATE SET short_term=EXCLUDED.short_term, short_confidence=EXCLUDED.short_confidence, long_term=EXCLUDED.long_term, long_confidence=EXCLUDED.long_confidence, strategies=EXCLUDED.strategies, overall=EXCLUDED.overall`,
+			item.Ticker, date, short, shortConf, long, longConf, strategiesJSON, overall)
 		if err != nil {
 			return err
 		}
@@ -87,7 +91,7 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 // ListAnalyses returns analyses for a given date.
 func (s *Service) ListAnalyses(ctx context.Context, date time.Time) ([]models.Analysis, error) {
 	rows := []models.Analysis{}
-	err := s.db.SelectContext(ctx, &rows, `SELECT id, ticker, analyzed_at, short_term, long_term, strategies, created_at, overall FROM analyses WHERE analyzed_at=$1 ORDER BY ticker`, date)
+	err := s.db.SelectContext(ctx, &rows, `SELECT id, ticker, analyzed_at, short_term, short_confidence, long_term, long_confidence, strategies, created_at, overall FROM analyses WHERE analyzed_at=$1 ORDER BY ticker`, date)
 	return rows, err
 }
 

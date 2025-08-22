@@ -32,12 +32,22 @@ export default function AnalysisTable() {
 
   const colorFormatter = (cell) => {
     const value = cell.getValue();
+    const field = cell.getField();
     if (value.startsWith('ACCUMULATE')) {
       cell.getElement().style.color = 'green';
     } else if (value.startsWith('AVOID')) {
       cell.getElement().style.color = 'red';
     } else {
       cell.getElement().style.color = 'orange';
+    }
+    let confField = null;
+    if (field === 'short_term') confField = 'short_confidence';
+    if (field === 'long_term') confField = 'long_confidence';
+    if (confField) {
+      const conf = cell.getRow().getData()[confField];
+      if (conf !== undefined) {
+        cell.getElement().setAttribute('title', conf + '%');
+      }
     }
     return value;
   };
