@@ -14,10 +14,23 @@ export default function AnalysisTable() {
       .catch(console.error);
   }, [api]);
 
+  const colorFormatter = (cell) => {
+    const value = cell.getValue();
+    if (value.startsWith('ACCUMULATE')) {
+      cell.getElement().style.color = 'green';
+    } else if (value.startsWith('AVOID')) {
+      cell.getElement().style.color = 'red';
+    } else {
+      cell.getElement().style.color = 'orange';
+    }
+    return value;
+  };
+
   const columns = [
     { title: 'Ticker', field: 'ticker', hozAlign: 'left' },
-    { title: 'Short', field: 'short_term.rating' },
-    { title: 'Long', field: 'long_term.rating' }
+    { title: 'Short', field: 'short_term', formatter: colorFormatter },
+    { title: 'Long', field: 'long_term', formatter: colorFormatter },
+    { title: 'Overall', field: 'overall', formatter: colorFormatter }
   ];
 
   return <ReactTabulator data={data} columns={columns} layout="fitData" />;
