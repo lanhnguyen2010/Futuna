@@ -4,5 +4,5 @@ set -e
 set -a
 . ./.env
 set +a
-migrate -path migrations -database "$DATABASE_URL" up
+./scripts/run-migrations.sh
 GO111MODULE=on go run ./cmd/web
