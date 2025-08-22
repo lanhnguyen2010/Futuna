@@ -18,7 +18,7 @@ spec:
         command: ["/app/web"]
         env:
         - name: DATABASE_URL
-          value: postgres://postgres:example@postgres:5432/postgres?sslmode=disable
+          value: postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
         - name: OPENAI_API_KEY
           valueFrom:
             secretKeyRef:
