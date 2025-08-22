@@ -15,7 +15,6 @@ CREATE TABLE IF NOT EXISTS analyses (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (ticker, analyzed_at)
 );
-
--- +migrate Down
-DROP TABLE IF EXISTS analyses;
-DROP TABLE IF EXISTS tickers;
+ALTER TABLE analyses
+    ADD COLUMN short_confidence INT,
+    ADD COLUMN long_confidence INT;
