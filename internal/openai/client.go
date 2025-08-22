@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	oa "github.com/sashabaranov/go-openai"
+	oa "github.com/sashabaranov/go-openai/v2"
 )
 
 // Client wraps the OpenAI API client.
