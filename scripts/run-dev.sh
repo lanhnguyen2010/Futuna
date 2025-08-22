@@ -4,6 +4,6 @@ set -e
 set -a
 . ./.env
 set +a
-migrate -path migrations -database "$DATABASE_URL" up
+./scripts/run-migrations.sh
 ANALYZE_ON_START=1 GO111MODULE=on go run ./cmd/web &
 npm --prefix web run dev
