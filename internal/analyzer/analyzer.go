@@ -67,8 +67,16 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 		}
 		short := fmt.Sprintf("%s - %s", item.ShortTerm.Rating, item.ShortTerm.Reason)
 		long := fmt.Sprintf("%s - %s", item.LongTerm.Rating, item.LongTerm.Reason)
-		_, err := s.db.ExecContext(ctx, `INSERT INTO analyses (ticker, analyzed_at, short_term, long_term, strategies, created_at, overall) VALUES ($1,$2,$3,$4,$5,NOW(),'') ON CONFLICT (ticker, analyzed_at) DO UPDATE SET short_term=EXCLUDED.short_term, long_term=EXCLUDED.long_term, strategies=EXCLUDED.strategies`,
-			item.Ticker, date, short, long, strategiesJSON)
+
+		overall := "HOLD"
+		if item.ShortTerm.Rating == "AVOID" || item.LongTerm.Rating == "AVOID" {
+			overall = "AVOID"
+		} else if item.ShortTerm.Rating == "ACCUMULATE" || item.LongTerm.Rating == "ACCUMULATE" {
+			overall = "ACCUMULATE"
+		}
+
+		_, err := s.db.ExecContext(ctx, `INSERT INTO analyses (ticker, analyzed_at, short_term, long_term, strategies, created_at, overall) VALUES ($1,$2,$3,$4,$5,NOW(),$6) ON CONFLICT (ticker, analyzed_at) DO UPDATE SET short_term=EXCLUDED.short_term, long_term=EXCLUDED.long_term, strategies=EXCLUDED.strategies, overall=EXCLUDED.overall`,
+			item.Ticker, date, short, long, strategiesJSON, overall)
 		if err != nil {
 			return err
 		}
