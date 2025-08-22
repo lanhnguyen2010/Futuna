@@ -37,8 +37,13 @@ func (c *Client) AnalyzeVN30(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if len(resp.Output) == 0 || len(resp.Output[0].Content) == 0 {
+	if len(resp.Output) == 0 {
 		return "", nil
 	}
-	return resp.Output[0].Content[0].Text, nil
+	// The last item of the output contains the assistant message with the JSON.
+	last := resp.Output[len(resp.Output)-1]
+	if len(last.Content) == 0 {
+		return "", nil
+	}
+	return last.Content[0].Text, nil
 }

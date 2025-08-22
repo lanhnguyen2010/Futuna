@@ -3,6 +3,7 @@ package analyzer
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -27,14 +28,24 @@ func NewService(db *sqlx.DB, llm OpenAI) *Service {
 }
 
 // AnalyzeAllAndStore runs analysis for all VN30 tickers and saves to DB.
-func (s *Service) AnalyzeAllAndStore(ctx context.Context, date time.Time) error {
+func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 	result, err := s.llm.AnalyzeVN30(ctx)
 	if err != nil {
 		return err
 	}
-	var payload map[string]struct {
-		ShortTerm  string `json:"short_term"`
-		LongTerm   string `json:"long_term"`
+	var payload struct {
+		AsOf string `json:"as_of"`
+		VN30 []struct {
+			Ticker    string `json:"ticker"`
+			ShortTerm struct {
+				Rating string `json:"rating"`
+				Reason string `json:"reason"`
+			} `json:"short_term"`
+			LongTerm struct {
+				Rating string `json:"rating"`
+				Reason string `json:"reason"`
+			} `json:"long_term"`
+		} `json:"vn30"`
 		Strategies []struct {
 			Name   string `json:"name"`
 			Stance string `json:"stance"`
@@ -44,12 +55,20 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context, date time.Time) error 
 	if err := json.Unmarshal([]byte(result), &payload); err != nil {
 		return err
 	}
-	for ticker, p := range payload {
-		strategiesJSON, _ := json.Marshal(p.Strategies)
-		_, err := s.db.ExecContext(ctx, `INSERT INTO analyses (ticker, analyzed_at, short_term, long_term, strategies, created_at, overall)
- VALUES ($1,$2,$3,$4,$5,NOW(),'')
- ON CONFLICT (ticker, analyzed_at) DO UPDATE SET short_term=EXCLUDED.short_term, long_term=EXCLUDED.long_term, strategies=EXCLUDED.strategies`,
-			ticker, date, p.ShortTerm, p.LongTerm, strategiesJSON)
+	date, err := time.Parse(time.RFC3339, payload.AsOf)
+	if err != nil {
+		date = time.Now()
+	}
+	date = date.Truncate(24 * time.Hour)
+	strategiesJSON, _ := json.Marshal(payload.Strategies)
+	for _, item := range payload.VN30 {
+		if _, err := s.db.ExecContext(ctx, `INSERT INTO tickers (symbol) VALUES ($1) ON CONFLICT DO NOTHING`, item.Ticker); err != nil {
+			return err
+		}
+		short := fmt.Sprintf("%s - %s", item.ShortTerm.Rating, item.ShortTerm.Reason)
+		long := fmt.Sprintf("%s - %s", item.LongTerm.Rating, item.LongTerm.Reason)
+		_, err := s.db.ExecContext(ctx, `INSERT INTO analyses (ticker, analyzed_at, short_term, long_term, strategies, created_at, overall) VALUES ($1,$2,$3,$4,$5,NOW(),'') ON CONFLICT (ticker, analyzed_at) DO UPDATE SET short_term=EXCLUDED.short_term, long_term=EXCLUDED.long_term, strategies=EXCLUDED.strategies`,
+			item.Ticker, date, short, long, strategiesJSON)
 		if err != nil {
 			return err
 		}

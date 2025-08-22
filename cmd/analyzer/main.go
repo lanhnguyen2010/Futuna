@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"log"
-	"time"
 
 	"futuna/internal/analyzer"
 	"futuna/internal/config"
@@ -20,8 +19,7 @@ func main() {
 	svc := analyzer.NewService(database, llm)
 
 	ctx := context.Background()
-	date := time.Now().Truncate(24 * time.Hour)
-	if err := svc.AnalyzeAllAndStore(ctx, date); err != nil {
+	if err := svc.AnalyzeAllAndStore(ctx); err != nil {
 		log.Fatalf("analyze: %v", err)
 	}
 	log.Println("analysis completed")
