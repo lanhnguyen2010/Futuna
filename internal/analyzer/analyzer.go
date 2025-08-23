@@ -10,12 +10,11 @@ import (
 	"github.com/jmoiron/sqlx/types"
 
 	"futuna/internal/models"
-	oai "futuna/internal/openai"
 )
 
 // OpenAI defines interface to get analysis.
 type OpenAI interface {
-	AnalyzeTickersBatch(ctx context.Context, batches [][]string) ([]oai.BatchResult, error)
+	AnalyzeTickers(ctx context.Context, tickers []string) (string, string, string, error)
 }
 
 // Service orchestrates OpenAI calls and persistence.
@@ -39,20 +38,18 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 	for i, t := range tickers {
 		symbols[i] = t.Symbol
 	}
-	var batches [][]string
+	//for i := 0; i < 1; i += 2 {
 	for i := 0; i < len(symbols); i += 5 {
 		end := i + 5
 		if end > len(symbols) {
 			end = len(symbols)
 		}
-		batches = append(batches, symbols[i:end])
-	}
-	results, err := s.llm.AnalyzeTickersBatch(ctx, batches)
-	if err != nil {
-		return err
-	}
-	for _, res := range results {
-		if _, err := s.db.ExecContext(ctx, `INSERT INTO openai_logs (request, response) VALUES ($1,$2)`, types.JSONText(res.Request), types.JSONText(res.Response)); err != nil {
+		batch := symbols[i:end]
+		reqJSON, respJSON, result, err := s.llm.AnalyzeTickers(ctx, batch)
+		if err != nil {
+			return err
+		}
+		if _, err := s.db.ExecContext(ctx, `INSERT INTO openai_logs (request, response) VALUES ($1,$2)`, types.JSONText(reqJSON), types.JSONText(respJSON)); err != nil {
 			return err
 		}
 		var payload struct {
@@ -82,7 +79,7 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 			} `json:"tickers"`
 			Sources []string `json:"sources"`
 		}
-		if err := json.Unmarshal([]byte(res.Output), &payload); err != nil {
+		if err := json.Unmarshal([]byte(result), &payload); err != nil {
 			return err
 		}
 		date, err := time.Parse(time.RFC3339, payload.AsOf)
@@ -109,6 +106,7 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 				return err
 			}
 		}
+		time.Sleep(60 * time.Second)
 	}
 	return nil
 }
