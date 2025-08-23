@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"strings"
+	"time"
 
 	openai "github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
@@ -233,13 +234,8 @@ congbothongtin.ssc.gov.vn`
 	// Keep a copy of the request (with our extra JSON injected below)
 	reqJSON, _ := json.Marshal(params)
 
-	// Call with JSON overrides:
-	// - tools: enable web_search (preview)
-	// - structured outputs via JSON schema
-	// - input: system + user messages
-	resp, err := c.api.Responses.New(
-		ctx,
-		params,
+	// Shared request options for the API call
+	opts := []option.RequestOption{
 		// Enable web search tool (try "web_search" first; some regions still use "..._preview")
 		option.WithJSONSet("tools", []map[string]any{
 			{"type": "web_search"},
@@ -266,7 +262,22 @@ congbothongtin.ssc.gov.vn`
 				},
 			},
 		}),
-	)
+	}
+
+	var resp *responses.Response
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		resp, err = c.api.Responses.New(ctx, params, opts...)
+		if err != nil {
+			if strings.Contains(strings.ToLower(err.Error()), "rate limit") {
+				log.Println("rate limit reached, sleeping before retrying")
+				time.Sleep(10 * time.Second)
+				continue
+			}
+			return string(reqJSON), "", "", err
+		}
+		break
+	}
 	if err != nil {
 		return string(reqJSON), "", "", err
 	}
