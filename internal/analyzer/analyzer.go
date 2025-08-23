@@ -39,82 +39,74 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 	for i, t := range tickers {
 		symbols[i] = t.Symbol
 	}
-
-	for i := 0; i < len(symbols); i += 10 {
-		end := i + 10
+	var batches [][]string
+	for i := 0; i < len(symbols); i += 5 {
+		end := i + 5
 		if end > len(symbols) {
 			end = len(symbols)
 		}
-		chunk := symbols[i:end]
-		var pairs [][]string
-		for j := 0; j < len(chunk); j += 2 {
-			end2 := j + 2
-			if end2 > len(chunk) {
-				end2 = len(chunk)
-			}
-			pairs = append(pairs, chunk[j:end2])
-		}
-		results, err := s.llm.AnalyzeTickersBatch(ctx, pairs)
-		if err != nil {
+		batches = append(batches, symbols[i:end])
+	}
+	results, err := s.llm.AnalyzeTickersBatch(ctx, batches)
+	if err != nil {
+		return err
+	}
+	for _, res := range results {
+		if _, err := s.db.ExecContext(ctx, `INSERT INTO openai_logs (request, response) VALUES ($1,$2)`, types.JSONText(res.Request), types.JSONText(res.Response)); err != nil {
 			return err
 		}
-		for _, res := range results {
-			if _, err := s.db.ExecContext(ctx, `INSERT INTO openai_logs (request, response) VALUES ($1,$2)`, types.JSONText(res.Request), types.JSONText(res.Response)); err != nil {
+		var payload struct {
+			AsOf    string `json:"as_of"`
+			Tickers []struct {
+				Ticker    string `json:"ticker"`
+				ShortTerm struct {
+					Recommendation string `json:"recommendation"`
+					Confidence     int    `json:"confidence"`
+					Reason         string `json:"reason"`
+				} `json:"short_term"`
+				LongTerm struct {
+					Recommendation string `json:"recommendation"`
+					Confidence     int    `json:"confidence"`
+					Reason         string `json:"reason"`
+				} `json:"long_term"`
+				Strategies []struct {
+					Name   string `json:"name"`
+					Stance string `json:"stance"`
+					Note   string `json:"note"`
+				} `json:"strategies"`
+				Overall struct {
+					Recommendation string `json:"recommendation"`
+					Confidence     int    `json:"confidence"`
+					Reason         string `json:"reason"`
+				} `json:"overall"`
+			} `json:"tickers"`
+			Sources []string `json:"sources"`
+		}
+		if err := json.Unmarshal([]byte(res.Output), &payload); err != nil {
+			return err
+		}
+		date, err := time.Parse(time.RFC3339, payload.AsOf)
+		if err != nil {
+			date = time.Now()
+		}
+		date = date.Truncate(24 * time.Hour)
+		sourcesJSON, _ := json.Marshal(payload.Sources)
+		for _, item := range payload.Tickers {
+			if _, err := s.db.ExecContext(ctx, `INSERT INTO tickers (symbol, name) VALUES ($1, $1) ON CONFLICT DO NOTHING`, item.Ticker); err != nil {
 				return err
 			}
-			var payload struct {
-				AsOf    string `json:"as_of"`
-				Tickers []struct {
-					Ticker    string `json:"ticker"`
-					ShortTerm struct {
-						Recommendation string `json:"recommendation"`
-						Confidence     int    `json:"confidence"`
-						Reason         string `json:"reason"`
-					} `json:"short_term"`
-					LongTerm struct {
-						Recommendation string `json:"recommendation"`
-						Confidence     int    `json:"confidence"`
-						Reason         string `json:"reason"`
-					} `json:"long_term"`
-					Strategies []struct {
-						Name   string `json:"name"`
-						Stance string `json:"stance"`
-						Note   string `json:"note"`
-					} `json:"strategies"`
-					Overall struct {
-						Recommendation string `json:"recommendation"`
-						Confidence     int    `json:"confidence"`
-						Reason         string `json:"reason"`
-					} `json:"overall"`
-				} `json:"tickers"`
-				Sources []string `json:"sources"`
-			}
-			if err := json.Unmarshal([]byte(res.Output), &payload); err != nil {
-				return err
-			}
-			date, err := time.Parse(time.RFC3339, payload.AsOf)
-			if err != nil {
-				date = time.Now()
-			}
-			date = date.Truncate(24 * time.Hour)
-			sourcesJSON, _ := json.Marshal(payload.Sources)
-			for _, item := range payload.Tickers {
-				if _, err := s.db.ExecContext(ctx, `INSERT INTO tickers (symbol, name) VALUES ($1, $1) ON CONFLICT DO NOTHING`, item.Ticker); err != nil {
-					return err
-				}
-				short := fmt.Sprintf("%s - %s", item.ShortTerm.Recommendation, item.ShortTerm.Reason)
-				shortConf := item.ShortTerm.Confidence
-				long := fmt.Sprintf("%s - %s", item.LongTerm.Recommendation, item.LongTerm.Reason)
-				longConf := item.LongTerm.Confidence
-				overall := fmt.Sprintf("%s - %s", item.Overall.Recommendation, item.Overall.Reason)
-				overallConf := item.Overall.Confidence
-				strategiesJSON, _ := json.Marshal(item.Strategies)
+			short := fmt.Sprintf("%s - %s", item.ShortTerm.Recommendation, item.ShortTerm.Reason)
+			shortConf := item.ShortTerm.Confidence
+			long := fmt.Sprintf("%s - %s", item.LongTerm.Recommendation, item.LongTerm.Reason)
+			longConf := item.LongTerm.Confidence
+			overall := fmt.Sprintf("%s - %s", item.Overall.Recommendation, item.Overall.Reason)
+			overallConf := item.Overall.Confidence
+			strategiesJSON, _ := json.Marshal(item.Strategies)
 
-				_, err := s.db.ExecContext(ctx, `INSERT INTO analyses (ticker, analyzed_at, short_term, short_confidence, long_term, long_confidence, strategies, overall, overall_confidence, sources, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW()) ON CONFLICT (ticker, analyzed_at) DO UPDATE SET short_term=EXCLUDED.short_term, short_confidence=EXCLUDED.short_confidence, long_term=EXCLUDED.long_term, long_confidence=EXCLUDED.long_confidence, strategies=EXCLUDED.strategies, overall=EXCLUDED.overall, overall_confidence=EXCLUDED.overall_confidence, sources=EXCLUDED.sources`,
-					item.Ticker, date, short, shortConf, long, longConf, strategiesJSON, overall, overallConf, sourcesJSON)
-				if err != nil {
-					return err
-				}
+			_, err := s.db.ExecContext(ctx, `INSERT INTO analyses (ticker, analyzed_at, short_term, short_confidence, long_term, long_confidence, strategies, overall, overall_confidence, sources, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW()) ON CONFLICT (ticker, analyzed_at) DO UPDATE SET short_term=EXCLUDED.short_term, short_confidence=EXCLUDED.short_confidence, long_term=EXCLUDED.long_term, long_confidence=EXCLUDED.long_confidence, strategies=EXCLUDED.strategies, overall=EXCLUDED.overall, overall_confidence=EXCLUDED.overall_confidence, sources=EXCLUDED.sources`,
+				item.Ticker, date, short, shortConf, long, longConf, strategiesJSON, overall, overallConf, sourcesJSON)
+			if err != nil {
+				return err
 			}
 		}
 	}

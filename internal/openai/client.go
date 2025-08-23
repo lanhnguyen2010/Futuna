@@ -39,8 +39,8 @@ func New(apiKey, baseURL, model string) *Client {
 // buildRequest constructs the request body for analysing the provided tickers and
 // returns the body along with its JSON encoding.
 func (c *Client) buildRequest(tickers []string) (map[string]any, string) {
-	if len(tickers) > 2 {
-		tickers = tickers[:2]
+	if len(tickers) > 5 {
+		tickers = tickers[:5]
 	}
 	tickersList := strings.Join(tickers, ", ")
 	log.Println("analysing: " + tickersList)
@@ -170,7 +170,7 @@ congbothongtin.ssc.gov.vn`
 			"tickers": map[string]any{
 				"type":     "array",
 				"minItems": 1,
-				"maxItems": 2,
+				"maxItems": 5,
 				"items": map[string]any{
 					"type":                 "object",
 					"additionalProperties": false,
