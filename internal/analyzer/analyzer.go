@@ -38,6 +38,7 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 	for i, t := range tickers {
 		symbols[i] = t.Symbol
 	}
+	//for i := 0; i < 1; i += 2 {
 	for i := 0; i < len(symbols); i += 5 {
 		end := i + 5
 		if end > len(symbols) {
@@ -88,7 +89,7 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 		date = date.Truncate(24 * time.Hour)
 		sourcesJSON, _ := json.Marshal(payload.Sources)
 		for _, item := range payload.Tickers {
-			if _, err := s.db.ExecContext(ctx, `INSERT INTO tickers (symbol) VALUES ($1) ON CONFLICT DO NOTHING`, item.Ticker); err != nil {
+			if _, err := s.db.ExecContext(ctx, `INSERT INTO tickers (symbol, name) VALUES ($1, $1) ON CONFLICT DO NOTHING`, item.Ticker); err != nil {
 				return err
 			}
 			short := fmt.Sprintf("%s - %s", item.ShortTerm.Recommendation, item.ShortTerm.Reason)
@@ -105,6 +106,7 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 				return err
 			}
 		}
+		time.Sleep(60 * time.Second)
 	}
 	return nil
 }
