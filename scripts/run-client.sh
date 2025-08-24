@@ -4,5 +4,5 @@ set -e
 set -a
 . ./.env
 set +a
-./scripts/run-migrations.sh
+npm --prefix web install
 npm --prefix web run dev

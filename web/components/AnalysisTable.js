@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 
-const ReactTabulator = dynamic(() => import('react-tabulator'), { ssr: false });
+const ReactTabulator = dynamic(
+  () => import('react-tabulator').then((mod) => mod.ReactTabulator),
+  { ssr: false },
+);
 
 export default function AnalysisTable() {
   const [rows, setRows] = useState([]);
@@ -60,7 +63,8 @@ export default function AnalysisTable() {
   }, [api]);
 
   const colorFormatter = (cell) => {
-    const value = cell.getValue();
+    const raw = cell.getValue();
+    const value = typeof raw === 'string' ? raw : (raw == null ? '' : String(raw));
     const field = cell.getField();
     if (value.startsWith('ACCUMULATE')) {
       cell.getElement().style.color = 'green';
@@ -84,10 +88,10 @@ export default function AnalysisTable() {
 
   const baseColumns = [
     { title: 'Ticker', field: 'ticker', hozAlign: 'left' },
-    { title: 'Short', field: 'short_term', formatter: colorFormatter },
-    { title: 'Short Reason', field: 'short_reason' },
-    { title: 'Long', field: 'long_term', formatter: colorFormatter },
-    { title: 'Long Reason', field: 'long_reason' },
+    { title: 'Short Term', field: 'short_term', formatter: colorFormatter },
+    { title: 'Short Details', field: 'short_reason' },
+    { title: 'Long Term', field: 'long_term', formatter: colorFormatter },
+    { title: 'Long Term Details', field: 'long_reason' },
     { title: 'Overall', field: 'overall', formatter: colorFormatter }
   ];
 

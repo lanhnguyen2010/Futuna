@@ -32,7 +32,7 @@ func (c *Client) AnalyzeTickers(ctx context.Context, tickers []string) (string, 
 	tickersList := strings.Join(tickers, ", ")
 	log.Println("analysing: " + tickersList)
 	// Ensure the OpenAI call has ample time to complete.
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 600*time.Minute)
 	defer cancel()
 	// --- your JSON Schema unchanged ---
 
@@ -45,21 +45,17 @@ func (c *Client) AnalyzeTickers(ctx context.Context, tickers []string) (string, 
                        "ticker": "<mã>",
                        "short_term": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"},
                        "long_term": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"},
-                       "strategies": [{"name": "<chiến lược>", "stance": "FAVORABLE|NEUTRAL|UNFAVORABLE", "note": "<ghi chú>"}],
-                       "overall": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"}
                  }
                ],
                "sources": ["<nguồn>"]
          }
        Rules:
-	   - Answer in Vietnamese
-       - Keep rationales concise (≤5 sentences).
-       - Always include 1–3 valid URLs per ticker.
-       - Prioritize T-1 trading data; if near token budget, keep T-1 + recommendations and shorten others.`
+	   - Answer in English
+       - Prioritize T-1 trading data, financial reports; if near token budget, keep T-1 + recommendations and shorten others.`
 	vn30AnalysisPrompt := `Task: Generate today’s 08:00 (GMT+7) VN30 stock analysis for: ` + tickersList + `
 	Return JSON with fields:
 	- as_of
-	- tickers: array (1 object per ticker, with short_term, long_term, strategies[], overall, sources[])
+	- tickers: array (1 object per ticker, with short_term, long_term, sources[])
 	Constraints:
 	- Rationales must be concise (≤5 sentences).
 	- Always fill "sources" with valid URLs.
