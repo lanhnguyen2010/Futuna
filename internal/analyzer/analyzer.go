@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -79,7 +80,8 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 			} `json:"tickers"`
 			Sources []string `json:"sources"`
 		}
-		if err := json.Unmarshal([]byte(result), &payload); err != nil {
+		clean := extractJSON(result)
+		if err := json.Unmarshal([]byte(clean), &payload); err != nil {
 			return err
 		}
 		date, err := time.Parse(time.RFC3339, payload.AsOf)
@@ -116,6 +118,16 @@ func (s *Service) ListAnalyses(ctx context.Context, date time.Time) ([]models.An
 	rows := []models.Analysis{}
 	err := s.db.SelectContext(ctx, &rows, `SELECT id, ticker, analyzed_at, short_term, short_confidence, long_term, long_confidence, strategies, overall, overall_confidence, sources, created_at FROM analyses WHERE analyzed_at=$1 ORDER BY ticker`, date)
 	return rows, err
+}
+
+// extractJSON attempts to trim surrounding text or code fences from a JSON string.
+func extractJSON(s string) string {
+	start := strings.Index(s, "{")
+	end := strings.LastIndex(s, "}")
+	if start >= 0 && end >= start {
+		return s[start : end+1]
+	}
+	return s
 }
 
 // ListTickers returns all tickers.

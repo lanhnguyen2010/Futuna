@@ -142,89 +142,25 @@ congbothongtin.ssc.gov.vn`
 	- **Confidence (0–100)**
 	- **Justification**: cân bằng short-term vs long-term và các chiến lược.
 	
-	**Yêu cầu định dạng đầu ra:**
-	- Viết theo từng mã VN30.
-	- Chỉ tiếng Việt. Không chèn HTML.
-	`
-
-	schema := map[string]any{
-		"type":                 "object",
-		"additionalProperties": false,
-		"properties": map[string]any{
-			"as_of": map[string]any{
-				"type":   "string",
-				"format": "date-time",
-			},
-			"tickers": map[string]any{
-				"type":     "array",
-				"minItems": 1,
-				"maxItems": 5,
-				"items": map[string]any{
-					"type":                 "object",
-					"additionalProperties": false,
-					"properties": map[string]any{
-						"ticker": map[string]any{
-							"type":    "string",
-							"pattern": "^[A-Z]{3,5}$",
-						},
-						"short_term": map[string]any{
-							"type":                 "object",
-							"additionalProperties": false,
-							"properties": map[string]any{
-								"recommendation": map[string]any{"type": "string", "enum": []string{"ACCUMULATE", "HOLD", "AVOID"}},
-								"confidence":     map[string]any{"type": "integer", "minimum": 0, "maximum": 100},
-								"reason":         map[string]any{"type": "string", "minLength": 1},
-							},
-							"required": []string{"recommendation", "confidence", "reason"},
-						},
-						"long_term": map[string]any{
-							"type":                 "object",
-							"additionalProperties": false,
-							"properties": map[string]any{
-								"recommendation": map[string]any{"type": "string", "enum": []string{"ACCUMULATE", "HOLD", "AVOID"}},
-								"confidence":     map[string]any{"type": "integer", "minimum": 0, "maximum": 100},
-								"reason":         map[string]any{"type": "string", "minLength": 1},
-							},
-							"required": []string{"recommendation", "confidence", "reason"},
-						},
-						"strategies": map[string]any{
-							"type":     "array",
-							"minItems": 5,
-							"items": map[string]any{
-								"type":                 "object",
-								"additionalProperties": false,
-								"properties": map[string]any{
-									"name":   map[string]any{"type": "string", "minLength": 1},
-									"stance": map[string]any{"type": "string", "enum": []string{"FAVORABLE", "NEUTRAL", "UNFAVORABLE"}},
-									"note":   map[string]any{"type": "string", "minLength": 1},
-								},
-								"required": []string{"name", "stance", "note"},
-							},
-						},
-						"overall": map[string]any{
-							"type":                 "object",
-							"additionalProperties": false,
-							"properties": map[string]any{
-								"recommendation": map[string]any{"type": "string", "enum": []string{"ACCUMULATE", "HOLD", "AVOID"}},
-								"confidence":     map[string]any{"type": "integer", "minimum": 0, "maximum": 100},
-								"reason":         map[string]any{"type": "string", "minLength": 1},
-							},
-							"required": []string{"recommendation", "confidence", "reason"},
-						},
-					},
-					"required": []string{"ticker", "short_term", "long_term", "strategies", "overall"},
-				},
-			},
-			"sources": map[string]any{
-				"type":     "array",
-				"minItems": 1,
-				"items": map[string]any{
-					"type": "string",
-				},
-			},
-		},
-		"required": []string{"as_of", "tickers", "sources"},
-	}
+        **Yêu cầu định dạng đầu ra:**
+        - Viết theo từng mã VN30.
+        - Chỉ tiếng Việt. Không chèn HTML.
+        - Xuất kết quả dưới dạng **JSON hợp lệ** theo cấu trúc:
+        {
+          "as_of": "RFC3339 timestamp",
+          "tickers": [
+            {
+              "ticker": "<mã>",
+              "short_term": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"},
+              "long_term": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"},
+              "strategies": [{"name": "<chiến lược>", "stance": "FAVORABLE|NEUTRAL|UNFAVORABLE", "note": "<ghi chú>"}],
+              "overall": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"}
+            }
+          ],
+          "sources": ["<nguồn>"]
+        }
+        Chỉ trả về JSON, không thêm văn bản khác.
+        `
 
 	// Build the minimal typed params (only what we must type)
 	params := responses.ResponseNewParams{
@@ -241,12 +177,6 @@ congbothongtin.ssc.gov.vn`
 			{"type": "web_search"},
 		}),
 		option.WithJSONSet("cache_control", map[string]any{"type": "ephemeral"}),
-		// Structured outputs under text.format (JSON Schema)
-		option.WithJSONSet("text.format", map[string]any{
-			"type":   "json_schema",
-			"schema": schema,
-			"name":   "analysis_response",
-		}),
 		// Input messages
 		option.WithJSONSet("input", []map[string]any{
 			{
