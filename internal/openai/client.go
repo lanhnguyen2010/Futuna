@@ -34,132 +34,33 @@ func (c *Client) AnalyzeTickers(ctx context.Context, tickers []string) (string, 
 
 	// --- your JSON Schema unchanged ---
 
-	systemPrompt := `Bạn là chuyên gia phân tích chứng khoán Việt Nam. Nhiệm vụ: tạo báo cáo hiện tại {YYYY_MM_DD} (GMT+7) cho rổ VN30 theo cấu trúc 0→7.
-Bạn được phép dùng công cụ web-search.
-Quy tắc bắt buộc:
-
-Chỉ tiếng Việt. Không chèn HTML.
-
-Phạm vi dữ liệu:
-
-Giá/khối lượng/khối ngoại cập nhật đến hết phiên T-1 (ngày {T_MINUS_1_YYYY_MM_DD}).
-
-Tin tức & sự kiện trong 30 ngày gần nhất tính đến hiện tại {YYYY_MM_DD} (GMT+7).
-
-BCTC 4 quý gần nhất và 3 năm gần nhất (ưu tiên báo cáo kiểm toán/soát xét).
-
-Phái sinh liên quan: VN30F1M (basis, OI, chênh lệch với cơ sở) — ghi rõ ngày/khung thời gian.
-
-Định giá: P/E (ttm/fwd), P/B, EV/EBITDA, PEG, dividend yield; so sánh với trung vị ngành nếu có nguồn đáng tin. Nếu không có, nêu rõ “(chưa sẵn công khai)”.
-
-Kỹ thuật: nếu có chuỗi giá đủ dài thì tự tính ATR(14), biến động 30 ngày, MA/RSI/Bollinger;.
-
-Xếp hạng:
-
-Recommendation ∈ {ACCUMULATE, HOLD, AVOID}
-
-Confidence ∈ [0,100] và kèm Reason rõ ràng.
-
-Định dạng đầu ra: theo mỗi mã (ví dụ: VCB, VNM, …) và đúng mục 0→7 dưới đây. Dùng gạch đầu dòng, ghi đơn vị & kỳ tham chiếu.
-
-Không đưa code, không JSON trong phần kết quả; chỉ là văn bản định dạng như yêu cầu.
-
-Khi dùng web-search:
-
-Ưu tiên: HSX/HOSE, HNX, SSC, SSI, Vietstock, CafeF, DN IR/Investors Relations, sở giao dịch phái sinh, TradingView/Investing (cho giá/lịch sử), CTCK uy tín (nguồn báo cáo), cố gắng tìm dữ liệu giao dịch cần thiết.
-
-Giá/khối lượng T-1 (Investing):
-site:investing.com {tên công ty tiếng Anh} historical data → mở trang “Historical Data” để lấy OHLC/Volume. 
-Investing.com
-
-Khối ngoại theo ngày (Vietstock/CafeF):
-site:finance.vietstock.vn "{TICKER}" "giao dịch nhà đầu tư nước ngoài" hoặc
-site:cafef.vn "{TICKER}" "khối ngoại" "{YYYY-MM-DD}" 
-VietstockFinance
-cafef
-
-Room ngoại:
-site:cafef.vn "room ngoại" "{TICKER}" 
-cafef
-
-Phái sinh VN30F1M (OI/basis):
-site:hnx.vn VN30F1M (tổng quan) + site:finance.vietstock.vn VN30F1M (chi tiết) + site:tradingview.com VN30 futures I1 (OI tham khảo). 
-HNX
-VietstockFinance
-TradingView
-
-Định giá/ratios:
-site:marketscreener.com {company} "Valuation ratios" 
-MarketScreener India
-
-BCTC/CBTT:
-site:congbothongtin.ssc.gov.vn {mã chứng khoán} "Báo cáo tài chính" 
-congbothongtin.ssc.gov.vn`
-	vn30AnalysisPrompt := `
-	Hãy **tạo bản phân tích hiện tại (GMT+7)** cho rổ VN30 trên HOSE**, danh sách mã:` + tickersList + `. Với **mỗi mã**, hãy thực hiện **điều tra dữ liệu** và xuất kết quả **chỉ bằng tiếng Việt** theo cấu trúc dưới đây. **Dữ liệu sử dụng phải cập nhật đến hết phiên T-1**, còn tin tức & sự kiện trong **30 ngày gần nhất**; báo cáo tài chính **4 quý gần nhất và 3 năm gần nhất**.
-	
-	### 0) Tóm tắt dữ liệu đầu vào (cho từng mã)
-	- **Thời điểm dữ liệu**: ghi rõ timestamp nguồn (giờ Việt Nam).
-	- **Giá & thị trường (T-1)**: O/H/L/C, % thay đổi, khối lượng, **GTGD**, **VWAP**, **ATR(14)**, **biến động 30 ngày**, **kháng cự/hỗ trợ** gần nhất, **gap** nếu có.
-	- **Dòng tiền nước ngoài (T-1 và 5/20 phiên)**: **khối lượng & giá trị** **mua ròng/bán ròng**, **tỷ lệ so với GTGD**, **room ngoại** còn lại (%).
-	- **Phái sinh liên quan** (nếu có): basis, OI, tín hiệu chênh lệch với cơ sở.
-	- **Định giá hiện tại**: **P/E (ttm/fwd)**, **P/B**, **EV/EBITDA**, **PEG**, **dividend yield**, so sánh với **trung vị ngành**.
-	- **Cơ bản tài chính** (từ BCTC kiểm toán/soát xét): doanh thu, LNST, **biên gộp**, **biên EBIT/NP**, **ROE/ROA**, **nợ vay ròng/EBITDA**, **hệ số thanh toán**, **chu kỳ tiền mặt**, **CAPEX**, **OCF/FCF** (YoY & QoQ), **tăng trưởng 3 năm CAGR**.
-	- **Sự kiện/catalyst** gần đây: KQKD, chia cổ tức/ESOP, M&A, phát hành, thay đổi quản trị, **tin đồn đã kiểm chứng**.
-	- **Rủi ro**: pháp lý, hàng tồn kho, khách hàng/nhà cung cấp lớn, rủi ro tỷ giá/lãi suất.
-	
-	### 1) Short-Term View (1–4 tuần)
-	- **Recommendation**: (ACCUMULATE | HOLD | AVOID)
-	- **Confidence (0–100)**
-	- **Reason**: nêu rõ luận điểm dựa trên **tín hiệu kỹ thuật**, **dòng tiền ngoại**, **biến động thị trường**, **tin tức ngắn hạn**.
-	
-	### 2) Long-Term View (6–24 tháng)
-	- **Recommendation**: (ACCUMULATE | HOLD | AVOID)
-	- **Confidence (0–100)**
-	- **Reason**: cân nhắc **nền tảng cơ bản**, **chu kỳ ngành**, **định giá**, **dòng tiền tự do**, **đòn bẩy**, **chính sách cổ tức**.
-	
-	### 3) Strategy-Based Analysis (ít nhất 5 chiến lược kỹ thuật/cơ bản)
-	- **Strategy Name** (ví dụ: Moving Average Crossover, RSI, Fibonacci, Momentum, Bollinger Bands, Ichimoku, Volume Profile, Fundamental PE/EVEBITDA Valuation, FCF Yield, Growth-Quality-Valuation, v.v.)
-	- **Stance**: (FAVORABLE | NEUTRAL | UNFAVORABLE)
-	- **Note**: giải thích **chỉ báo/giá trị/thiết lập** đang quan sát.
-	
-	### 4) Phân tích Dòng tiền & Báo cáo tài chính
-	- Doanh thu & LNST: YoY/QoQ, động lực chính.
-	- Biên lợi nhuận: gộp/EBIT/NP và xu hướng.
-	- Dòng tiền: **OCF**, **CAPEX**, **FCF**.
-	- Đòn bẩy & thanh khoản: **Nợ ròng/EBITDA**, **ICR**, **Current ratio/Quick ratio**.
-	- Định giá: P/E, EV/EBITDA, P/B so với ngành & lịch sử.
-	- Chính sách cổ tức.
-	- Nhận định ảnh hưởng tới khuyến nghị.
-	
-	### 5) Phân tích Giao dịch Nước ngoài & Thị trường
-	- Mua/bán ròng: T-1, 5 phiên, 20 phiên.
-	- Room ngoại còn lại.
-	- Tín hiệu thị trường: VWAP, thanh khoản, ATR, độ rộng ngành.
-	
-	### 6) Final Overall Recommendation
-	- **Khuyến nghị tổng hợp**: (ACCUMULATE | HOLD | AVOID)
-	- **Confidence (0–100)**
-	- **Justification**: cân bằng short-term vs long-term và các chiến lược.
-	
-        **Yêu cầu định dạng đầu ra:**
-        - Viết theo từng mã VN30.
-        - Chỉ tiếng Việt. Không chèn HTML.
-        - Xuất kết quả dưới dạng **JSON hợp lệ** theo cấu trúc:
-        {
-          "as_of": "RFC3339 timestamp",
-          "tickers": [
-            {
-              "ticker": "<mã>",
-              "short_term": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"},
-              "long_term": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"},
-              "strategies": [{"name": "<chiến lược>", "stance": "FAVORABLE|NEUTRAL|UNFAVORABLE", "note": "<ghi chú>"}],
-              "overall": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"}
-            }
-          ],
-          "sources": ["<nguồn>"]
-        }
-        Chỉ trả về JSON, không thêm văn bản khác.
+	systemPrompt := `You are a disciplined Vietnam equity analyst. Use the web_search tool for time-sensitive data.
+	Output: NDJSON — exactly one JSON object per ticker, one line each. No extra text.
+	{
+		"as_of": "RFC3339 timestamp",
+		"tickers": [
+		  {
+			"ticker": "<mã>",
+			"short_term": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"},
+			"long_term": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"},
+			"strategies": [{"name": "<chiến lược>", "stance": "FAVORABLE|NEUTRAL|UNFAVORABLE", "note": "<ghi chú>"}],
+			"overall": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"}
+		  }
+		],
+		"sources": ["<nguồn>"]
+	  }
+	Rules:
+	- Keep rationales concise (≤5 sentences).
+	- Always include 1–3 valid URLs per ticker.
+	- Prioritize T-1 trading data; if near token budget, keep T-1 + recommendations and shorten others.`
+	vn30AnalysisPrompt := `Task: Generate today’s 08:00 (GMT+7) VN30 stock analysis for: ` + tickersList + `
+	Return JSON with fields:
+	- as_of
+	- tickers: array (1 object per ticker, with short_term, long_term, strategies[], overall, sources[])
+	Constraints:
+	- Rationales must be concise (≤5 sentences).
+	- Always fill "sources" with valid URLs.
+	- If token budget exceeded, Prioritize  T-1 trading info + recommendations.
         `
 
 	// Build the minimal typed params (only what we must type)
@@ -176,7 +77,6 @@ congbothongtin.ssc.gov.vn`
 		option.WithJSONSet("tools", []map[string]any{
 			{"type": "web_search"},
 		}),
-		option.WithJSONSet("cache_control", map[string]any{"type": "ephemeral"}),
 		// Input messages
 		option.WithJSONSet("input", []map[string]any{
 			{
