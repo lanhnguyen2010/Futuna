@@ -31,10 +31,12 @@ func (c *Client) AnalyzeTickers(ctx context.Context, tickers []string) (string, 
 	}
 	tickersList := strings.Join(tickers, ", ")
 	log.Println("analysing: " + tickersList)
-
+	// Ensure the OpenAI call has ample time to complete.
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Minute)
+	defer cancel()
 	// --- your JSON Schema unchanged ---
 
-       systemPrompt := `You are a disciplined Vietnam equity analyst. Use the web_search tool for time-sensitive data.
+	systemPrompt := `You are a disciplined Vietnam equity analyst. Use the web_search tool for time-sensitive data.
        Output: JSON matching this exact structure with no extra text.
        {
                "as_of": "RFC3339 timestamp",
@@ -50,6 +52,7 @@ func (c *Client) AnalyzeTickers(ctx context.Context, tickers []string) (string, 
                "sources": ["<nguồn>"]
          }
        Rules:
+	   - Answer in Vietnamese
        - Keep rationales concise (≤5 sentences).
        - Always include 1–3 valid URLs per ticker.
        - Prioritize T-1 trading data; if near token budget, keep T-1 + recommendations and shorten others.`
