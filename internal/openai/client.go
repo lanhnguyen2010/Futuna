@@ -34,25 +34,25 @@ func (c *Client) AnalyzeTickers(ctx context.Context, tickers []string) (string, 
 
 	// --- your JSON Schema unchanged ---
 
-	systemPrompt := `You are a disciplined Vietnam equity analyst. Use the web_search tool for time-sensitive data.
-	Output: NDJSON — exactly one JSON object per ticker, one line each. No extra text.
-	{
-		"as_of": "RFC3339 timestamp",
-		"tickers": [
-		  {
-			"ticker": "<mã>",
-			"short_term": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"},
-			"long_term": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"},
-			"strategies": [{"name": "<chiến lược>", "stance": "FAVORABLE|NEUTRAL|UNFAVORABLE", "note": "<ghi chú>"}],
-			"overall": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"}
-		  }
-		],
-		"sources": ["<nguồn>"]
-	  }
-	Rules:
-	- Keep rationales concise (≤5 sentences).
-	- Always include 1–3 valid URLs per ticker.
-	- Prioritize T-1 trading data; if near token budget, keep T-1 + recommendations and shorten others.`
+       systemPrompt := `You are a disciplined Vietnam equity analyst. Use the web_search tool for time-sensitive data.
+       Output: JSON matching this exact structure with no extra text.
+       {
+               "as_of": "RFC3339 timestamp",
+               "tickers": [
+                 {
+                       "ticker": "<mã>",
+                       "short_term": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"},
+                       "long_term": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"},
+                       "strategies": [{"name": "<chiến lược>", "stance": "FAVORABLE|NEUTRAL|UNFAVORABLE", "note": "<ghi chú>"}],
+                       "overall": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"}
+                 }
+               ],
+               "sources": ["<nguồn>"]
+         }
+       Rules:
+       - Keep rationales concise (≤5 sentences).
+       - Always include 1–3 valid URLs per ticker.
+       - Prioritize T-1 trading data; if near token budget, keep T-1 + recommendations and shorten others.`
 	vn30AnalysisPrompt := `Task: Generate today’s 08:00 (GMT+7) VN30 stock analysis for: ` + tickersList + `
 	Return JSON with fields:
 	- as_of
