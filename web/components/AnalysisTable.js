@@ -6,14 +6,16 @@ const ReactTabulator = dynamic(
   { ssr: false },
 );
 
+// dynamically import react-datepicker to avoid SSR issues
+const DatePicker = dynamic(() => import("react-datepicker"), { ssr: false });
+
 export default function AnalysisTable() {
   const [rows, setRows] = useState([]);
   const [dates, setDates] = useState([]);
   const [strategies, setStrategies] = useState([]);
   const [active, setActive] = useState("All");
   const [date, setDate] = useState("");
-  const [prevDate, setPrevDate] = useState("");
-  const [dateError, setDateError] = useState("");
+  const [dateObjects, setDateObjects] = useState([]);
   const [search, setSearch] = useState("");
   const [sources, setSources] = useState([]);
   const api = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -80,21 +82,37 @@ export default function AnalysisTable() {
         const list = d || [];
         setDates(list);
         if (list && list.length > 0) {
-          // default to the first (most recent) date
           setDate(list[0]);
-          setPrevDate(list[0]);
         } else {
           const today = new Date().toISOString().slice(0, 10);
           setDate(today);
-          setPrevDate(today);
         }
       })
       .catch(() => {
         const today = new Date().toISOString().slice(0, 10);
         setDate(today);
-        setPrevDate(today);
       });
   }, [api]);
+
+  // convert available date strings to Date objects for the datepicker includeDates
+  useEffect(() => {
+    if (!dates || dates.length === 0) {
+      setDateObjects([]);
+      return;
+    }
+    const objs = dates.map((s) => {
+      // ensure timezone isn't shifting date by using T00:00:00
+      return new Date(s + "T00:00:00");
+    });
+    setDateObjects(objs);
+  }, [dates]);
+
+  // dynamically import react-datepicker styles on client
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      import("react-datepicker/dist/react-datepicker.css");
+    }
+  }, []);
 
   const colorFormatter = (cell) => {
     const raw = cell.getValue();
@@ -163,34 +181,22 @@ export default function AnalysisTable() {
           gap: "1rem",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexDirection: "column" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <label htmlFor="analysis-date">Date:</label>
-            <input
-              id="analysis-date"
-              type="date"
-              value={date}
-              onChange={(e) => {
-                const v = e.target.value;
-                // if we have a list of available dates, only allow selecting from that list
-                if (dates.length > 0 && !dates.includes(v)) {
-                  // revert to previous valid date and show a short error
-                  setDate(prevDate);
-                  setDateError("No data for selected date");
-                  setTimeout(() => setDateError(""), 3000);
-                  return;
-                }
-                setPrevDate(date);
-                setDate(v);
-              }}
-            />
-          </div>
-          <div style={{ fontSize: 12, color: "#666" }}>
-            Available dates: {dates.length > 0 ? dates.join(", ") : "none"}
-          </div>
-          {dateError && (
-            <div style={{ color: "red", fontSize: 12 }}>{dateError}</div>
-          )}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <label htmlFor="analysis-date">Date:</label>
+          {/* react-datepicker is dynamically imported to avoid SSR issues */}
+          <DatePicker
+            id="analysis-date"
+            selected={date ? new Date(date + "T00:00:00") : null}
+            onChange={(d) => {
+              if (!d) return;
+              const s = d.toISOString().slice(0, 10);
+              setDate(s);
+            }}
+            includeDates={dateObjects}
+            dateFormat="yyyy-MM-dd"
+            placeholderText={dates.length === 0 ? "No dates available" : "Select date"}
+            disabled={dateObjects.length === 0}
+          />
         </div>
         <ul className="tabs">
           <li
