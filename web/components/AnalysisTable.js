@@ -190,7 +190,7 @@ export default function AnalysisTable() {
           {/* react-datepicker is dynamically imported to avoid SSR issues */}
           <DatePicker
             id="analysis-date"
-            selected={date ? ((): any => {
+            selected={date ? (() => {
               const parts = date.split("-");
               return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
             })() : null}
