@@ -12,6 +12,8 @@ export default function AnalysisTable() {
   const [strategies, setStrategies] = useState([]);
   const [active, setActive] = useState("All");
   const [date, setDate] = useState("");
+  const [prevDate, setPrevDate] = useState("");
+  const [dateError, setDateError] = useState("");
   const [search, setSearch] = useState("");
   const [sources, setSources] = useState([]);
   const api = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -75,19 +77,22 @@ export default function AnalysisTable() {
     fetch(`${api}/api/dates`)
       .then((res) => res.json())
       .then((d) => {
-        setDates(d || []);
-        if (d && d.length > 0) {
+        const list = d || [];
+        setDates(list);
+        if (list && list.length > 0) {
           // default to the first (most recent) date
-          setDate(d[0]);
+          setDate(list[0]);
+          setPrevDate(list[0]);
         } else {
-          // fallback to today
           const today = new Date().toISOString().slice(0, 10);
           setDate(today);
+          setPrevDate(today);
         }
       })
       .catch(() => {
         const today = new Date().toISOString().slice(0, 10);
         setDate(today);
+        setPrevDate(today);
       });
   }, [api]);
 
@@ -158,16 +163,34 @@ export default function AnalysisTable() {
           gap: "1rem",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <label htmlFor="analysis-date">Date:</label>
-          <select id="analysis-date" value={date} onChange={(e) => setDate(e.target.value)}>
-            {dates.length === 0 && <option value="">No data</option>}
-            {dates.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexDirection: "column" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <label htmlFor="analysis-date">Date:</label>
+            <input
+              id="analysis-date"
+              type="date"
+              value={date}
+              onChange={(e) => {
+                const v = e.target.value;
+                // if we have a list of available dates, only allow selecting from that list
+                if (dates.length > 0 && !dates.includes(v)) {
+                  // revert to previous valid date and show a short error
+                  setDate(prevDate);
+                  setDateError("No data for selected date");
+                  setTimeout(() => setDateError(""), 3000);
+                  return;
+                }
+                setPrevDate(date);
+                setDate(v);
+              }}
+            />
+          </div>
+          <div style={{ fontSize: 12, color: "#666" }}>
+            Available dates: {dates.length > 0 ? dates.join(", ") : "none"}
+          </div>
+          {dateError && (
+            <div style={{ color: "red", fontSize: 12 }}>{dateError}</div>
+          )}
         </div>
         <ul className="tabs">
           <li
