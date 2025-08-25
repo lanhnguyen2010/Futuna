@@ -101,8 +101,12 @@ export default function AnalysisTable() {
       return;
     }
     const objs = dates.map((s) => {
-      // ensure timezone isn't shifting date by using T00:00:00
-      return new Date(s + "T00:00:00");
+      // create a local Date at midnight for the given YYYY-MM-DD to avoid timezone shifts
+      const parts = s.split("-");
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      return new Date(y, m, d);
     });
     setDateObjects(objs);
   }, [dates]);
@@ -186,10 +190,17 @@ export default function AnalysisTable() {
           {/* react-datepicker is dynamically imported to avoid SSR issues */}
           <DatePicker
             id="analysis-date"
-            selected={date ? new Date(date + "T00:00:00") : null}
+            selected={date ? ((): any => {
+              const parts = date.split("-");
+              return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+            })() : null}
             onChange={(d) => {
               if (!d) return;
-              const s = d.toISOString().slice(0, 10);
+              // format using local date components to avoid timezone/UTC shifts
+              const y = d.getFullYear();
+              const m = String(d.getMonth() + 1).padStart(2, "0");
+              const day = String(d.getDate()).padStart(2, "0");
+              const s = `${y}-${m}-${day}`;
               setDate(s);
             }}
             includeDates={dateObjects}
