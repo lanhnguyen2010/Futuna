@@ -44,7 +44,7 @@ func (c *Client) AnalyzeTickers(ctx context.Context, tickers []string) (string, 
                  {
                        "ticker": "<mã>",
                        "short_term": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "<lí do>"},
-                       "long_term": {"recommendation": estimated target price, "confidence": <0-100>, "reason": gap target price to current price},
+                       "long_term": {"recommendation": "ACCUMULATE|HOLD|AVOID", "confidence": <0-100>, "reason": "target price, gap between current price and target price"},
                  }
                ],
                "sources": ["<nguồn>"]

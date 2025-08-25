@@ -57,5 +57,19 @@ func Router(svc *analyzer.Service) http.Handler {
 		json.NewEncoder(w).Encode(rows)
 	})
 
+	r.Get("/api/dates", func(w http.ResponseWriter, r *http.Request) {
+		rows, err := svc.ListAnalysisDates(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// format as YYYY-MM-DD strings
+		out := make([]string, 0, len(rows))
+		for _, d := range rows {
+			out = append(out, d.Format("2006-01-02"))
+		}
+		json.NewEncoder(w).Encode(out)
+	})
+
 	return r
 }

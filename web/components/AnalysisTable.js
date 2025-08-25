@@ -8,8 +8,10 @@ const ReactTabulator = dynamic(
 
 export default function AnalysisTable() {
   const [rows, setRows] = useState([]);
+  const [dates, setDates] = useState([]);
   const [strategies, setStrategies] = useState([]);
   const [active, setActive] = useState("All");
+  const [date, setDate] = useState("");
   const [search, setSearch] = useState("");
   const [sources, setSources] = useState([]);
   const api = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -22,7 +24,8 @@ export default function AnalysisTable() {
   };
 
   useEffect(() => {
-    fetch(`${api}/api/analysis`)
+    const url = date ? `${api}/api/analysis?date=${date}` : `${api}/api/analysis`;
+    fetch(url)
       .then((res) => res.json())
       .then((data) => {
         const stratMap = new Map();
@@ -65,6 +68,27 @@ export default function AnalysisTable() {
         }
       })
       .catch(console.error);
+  }, [api, date]);
+
+  // fetch available dates for analyses
+  useEffect(() => {
+    fetch(`${api}/api/dates`)
+      .then((res) => res.json())
+      .then((d) => {
+        setDates(d || []);
+        if (d && d.length > 0) {
+          // default to the first (most recent) date
+          setDate(d[0]);
+        } else {
+          // fallback to today
+          const today = new Date().toISOString().slice(0, 10);
+          setDate(today);
+        }
+      })
+      .catch(() => {
+        const today = new Date().toISOString().slice(0, 10);
+        setDate(today);
+      });
   }, [api]);
 
   const colorFormatter = (cell) => {
@@ -134,6 +158,17 @@ export default function AnalysisTable() {
           gap: "1rem",
         }}
       >
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <label htmlFor="analysis-date">Date:</label>
+          <select id="analysis-date" value={date} onChange={(e) => setDate(e.target.value)}>
+            {dates.length === 0 && <option value="">No data</option>}
+            {dates.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </div>
         <ul className="tabs">
           <li
             className={active === "All" ? "active" : ""}

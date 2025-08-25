@@ -42,7 +42,7 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 	}
 	// create batches of 5 tickers
 	batches := [][]string{}
-	for i := 0; i < 5; i += 5 {
+	for i := 0; i < len(symbols); i += 5 {
 		end := i + 5
 		if end > len(symbols) {
 			end = len(symbols)
@@ -90,7 +90,7 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 						Note   string `json:"note"`
 					} `json:"strategies"`
 					Overall struct {
-						Recommendation int    `json:"recommendation"`
+						Recommendation string `json:"recommendation"`
 						Confidence     int    `json:"confidence"`
 						Reason         string `json:"reason"`
 					} `json:"overall"`
@@ -138,6 +138,13 @@ func (s *Service) AnalyzeAllAndStore(ctx context.Context) error {
 func (s *Service) ListAnalyses(ctx context.Context, date time.Time) ([]models.Analysis, error) {
 	rows := []models.Analysis{}
 	err := s.db.SelectContext(ctx, &rows, `SELECT id, ticker, analyzed_at, short_term, short_confidence, long_term, long_confidence, strategies, overall, overall_confidence, sources, created_at FROM analyses WHERE analyzed_at=$1 ORDER BY ticker`, date)
+	return rows, err
+}
+
+// ListAnalysisDates returns available analysis dates (distinct analyzed_at values).
+func (s *Service) ListAnalysisDates(ctx context.Context) ([]time.Time, error) {
+	rows := []time.Time{}
+	err := s.db.SelectContext(ctx, &rows, `SELECT DISTINCT analyzed_at FROM analyses ORDER BY analyzed_at DESC`)
 	return rows, err
 }
 
